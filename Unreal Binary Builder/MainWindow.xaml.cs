@@ -3,6 +3,7 @@ using Microsoft.Win32;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Management;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Threading;
@@ -504,7 +505,7 @@ namespace Unreal_Binary_Builder
             if (bIsBuilding)
             {
                 GameAnalyticsCSharp.AddDesignEvent("Build:AutomationTool:Killed");
-                AutomationToolProcess.Kill();
+                KillProcessAndChildren(AutomationToolProcess.Id);
                 return;
             }
 
@@ -651,7 +652,7 @@ namespace Unreal_Binary_Builder
                     if (AutomationToolProcess != null)
                     {
                         GameAnalyticsCSharp.AddDesignEvent("Build:AutomationTool:Killed:ExitProgram");
-                        AutomationToolProcess.Kill();
+                        KillProcessAndChildren(AutomationToolProcess.Id);
                     }
                 }
                 else
@@ -738,5 +739,26 @@ namespace Unreal_Binary_Builder
 		{
             postBuildSettings.CancelTask(this);
 		}
-	}
+        private static void KillProcessAndChildren(int pid)
+        {
+            if (pid == 0)
+            {
+                return;
+            }
+            ManagementObjectSearcher searcher = new ManagementObjectSearcher("Select * From Win32_Process Where ParentProcessID=" + pid);
+            ManagementObjectCollection moc = searcher.Get();
+            foreach (ManagementObject mo in moc)
+            {
+                KillProcessAndChildren(Convert.ToInt32(mo["ProcessID"]));
+            }
+            try
+            {
+                Process proc = Process.GetProcessById(pid);
+                proc.Kill();
+            }
+            catch (ArgumentException)
+            {
+            }
+        }
+    }
 }
